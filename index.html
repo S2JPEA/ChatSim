@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Widget</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Landing Page -->
+    <div id="landing-page" class="landing-container">
+        <div class="landing-card">
+            <h1>💬 Chat Widget</h1>
+            <p>Enter a chat code to start messaging</p>
+            
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    id="chat-code-input" 
+                    placeholder="Enter chat code"
+                    maxlength="6"
+                >
+                <button id="join-btn" class="btn-primary">Join Chat</button>
+            </div>
+            
+            <div class="divider">
+                <span>or</span>
+            </div>
+            
+            <button id="generate-btn" class="btn-secondary">Generate New Code</button>
+            
+            <div id="generated-code" class="generated-code hidden">
+                <p>Your chat code:</p>
+                <div class="code-display">
+                    <span id="code-value"></span>
+                    <button id="copy-btn" class="btn-copy" title="Copy code">📋</button>
+                </div>
+                <p class="code-info">Share this code with someone to start chatting</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Interface -->
+    <div id="chat-page" class="chat-container hidden">
+        <div class="chat-widget">
+            <!-- Chat Header -->
+            <div class="chat-header">
+                <div class="chat-header-content">
+                    <div class="status-indicator online"></div>
+                    <div>
+                        <h3>Chat Room</h3>
+                        <p class="chat-code-display">Code: <span id="active-code"></span></p>
+                    </div>
+                </div>
+                <button id="leave-btn" class="btn-leave" title="Leave chat">✕</button>
+            </div>
+
+            <!-- Messages Area -->
+            <div class="messages-container" id="messages">
+                <div class="welcome-message">
+                    <p>🎉 Welcome to the chat!</p>
+                    <p class="small">Share your code with someone to start chatting</p>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-container">
+                <input 
+                    type="text" 
+                    id="message-input" 
+                    placeholder="Type a message..."
+                    autocomplete="off"
+                >
+                <button id="send-btn" class="btn-send">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M2 10L18 2L10 18L8 11L2 10Z" fill="currentColor"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <!-- App Script -->
+    <script src="app.js"></script>
+</body>
+</html>
+
