@@ -47,6 +47,18 @@ body {
     margin-bottom: 30px;
 }
 
+.landing-illustration {
+    width: 100%;
+    max-width: 280px;
+    margin: 0 auto 20px;
+}
+
+.landing-illustration svg {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
 .input-group {
     display: flex;
     gap: 10px;
