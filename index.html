@@ -42,41 +42,70 @@
 
     <!-- Chat Interface -->
     <div id="chat-page" class="chat-container hidden">
-        <div class="chat-widget">
-            <!-- Chat Header -->
-            <div class="chat-header">
-                <div class="chat-header-content">
-                    <div class="status-indicator online"></div>
-                    <div>
-                        <h3>Chat Room</h3>
-                        <p class="chat-code-display">Code: <span id="active-code"></span></p>
+        <div class="chat-layout">
+            <div class="chat-widget">
+                <!-- Chat Header -->
+                <div class="chat-header">
+                    <div class="chat-header-content">
+                        <div class="status-indicator online"></div>
+                        <div>
+                            <h3>Chat Room</h3>
+                            <p class="chat-code-display">Code: <span id="active-code"></span></p>
+                        </div>
+                    </div>
+                    <div class="chat-header-actions">
+                        <span class="role-badge" id="role-badge">Role: Agent</span>
+                        <button id="leave-btn" class="btn-leave" title="Leave chat">✕</button>
                     </div>
                 </div>
-                <button id="leave-btn" class="btn-leave" title="Leave chat">✕</button>
-            </div>
 
-            <!-- Messages Area -->
-            <div class="messages-container" id="messages">
-                <div class="welcome-message">
-                    <p>🎉 Welcome to the chat!</p>
-                    <p class="small">Share your code with someone to start chatting</p>
+                <!-- Messages Area -->
+                <div class="messages-container" id="messages">
+                    <div class="welcome-message">
+                        <p>🎉 Welcome to the chat!</p>
+                        <p class="small">Share your code with someone to start chatting</p>
+                    </div>
+                </div>
+
+                <!-- Input Area -->
+                <div class="input-container">
+                    <input 
+                        type="text" 
+                        id="message-input" 
+                        placeholder="Type a message..."
+                        autocomplete="off"
+                    >
+                    <button id="send-btn" class="btn-send">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M2 10L18 2L10 18L8 11L2 10Z" fill="currentColor"/>
+                        </svg>
+                    </button>
                 </div>
             </div>
 
-            <!-- Input Area -->
-            <div class="input-container">
-                <input 
-                    type="text" 
-                    id="message-input" 
-                    placeholder="Type a message..."
-                    autocomplete="off"
-                >
-                <button id="send-btn" class="btn-send">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                        <path d="M2 10L18 2L10 18L8 11L2 10Z" fill="currentColor"/>
-                    </svg>
-                </button>
-            </div>
+            <aside id="admin-panel" class="admin-panel hidden">
+                <div class="admin-panel-header">
+                    <div>
+                        <h4>Admin Console</h4>
+                        <p>Monitor agent activity, timings & transcript</p>
+                    </div>
+                    <button id="export-transcript-btn" class="btn-tertiary" type="button">Export Transcript</button>
+                </div>
+
+                <div class="admin-section">
+                    <h5>Agent Typing Monitor</h5>
+                    <div id="typing-insights" class="insights-list empty-state">
+                        <p>No agent connected yet.</p>
+                    </div>
+                </div>
+
+                <div class="admin-section">
+                    <h5>Transcript & Timings</h5>
+                    <div id="transcript-list" class="transcript-list empty-state">
+                        <p>Transcript will appear once messages arrive.</p>
+                    </div>
+                </div>
+            </aside>
         </div>
     </div>
 
