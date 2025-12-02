@@ -34,8 +34,10 @@ const chatCodeInput = document.getElementById('chat-code-input');
 const joinBtn = document.getElementById('join-btn');
 const generateBtn = document.getElementById('generate-btn');
 const generatedCodeDiv = document.getElementById('generated-code');
-const codeValue = document.getElementById('code-value');
-const copyBtn = document.getElementById('copy-btn');
+const adminCodeValue = document.getElementById('admin-code-value');
+const agentCodeValue = document.getElementById('agent-code-value');
+const copyAdminBtn = document.getElementById('copy-admin-btn');
+const copyAgentBtn = document.getElementById('copy-agent-btn');
 const leaveBtn = document.getElementById('leave-btn');
 const messageInput = document.getElementById('message-input');
 const sendBtn = document.getElementById('send-btn');
@@ -47,6 +49,8 @@ const transcriptList = document.getElementById('transcript-list');
 const exportTranscriptBtn = document.getElementById('export-transcript-btn');
 const typingInsights = document.getElementById('typing-insights');
 
+const ADMIN_CODE_PREFIX = 'ADM-';
+const AGENT_CODE_PREFIX = 'AGT-';
 const TYPING_IDLE_TIMEOUT = 2000;
 
 let currentRole = 'agent';
@@ -54,8 +58,6 @@ let transcriptEntries = [];
 let lastMessageTimestamp = null;
 let statusRef = null;
 let statusMonitorRef = null;
-let adminMetadataRef = null;
-let adminOnDisconnect = null;
 
 const typingSession = {
     startedAt: null,
@@ -97,58 +99,30 @@ if (exportTranscriptBtn) {
 }
 
 // Role helpers
-async function assignRoleForChat() {
-    if (!database || !currentChatCode) return 'agent';
-    adminMetadataRef = database.ref(`chats/${currentChatCode}/metadata/adminId`);
-    try {
-        const result = await adminMetadataRef.transaction((currentValue) => currentValue || currentUserId);
-        const assignedAdminId = result.snapshot && result.snapshot.val();
-        if (assignedAdminId === currentUserId) {
-            setupAdminOnDisconnect();
-            return 'admin';
-        }
-        cleanupAdminOnDisconnect();
-        adminMetadataRef = null;
-        return 'agent';
-    } catch (error) {
-        console.error('Unable to assign admin role:', error);
-        adminMetadataRef = null;
-        cleanupAdminOnDisconnect();
-        return 'agent';
-    }
+function buildAccessCodes(chatCode) {
+    const normalized = chatCode.toUpperCase();
+    return {
+        adminCode: `${ADMIN_CODE_PREFIX}${normalized}`,
+        agentCode: `${AGENT_CODE_PREFIX}${normalized}`
+    };
 }
 
-function setupAdminOnDisconnect() {
-    cleanupAdminOnDisconnect();
-    if (!adminMetadataRef) return;
-    try {
-        adminOnDisconnect = adminMetadataRef.onDisconnect();
-        adminOnDisconnect.remove();
-    } catch (error) {
-        console.warn('Failed to register admin onDisconnect handler', error);
+function parseAccessCode(input) {
+    if (!input) return null;
+    const normalized = input.trim().toUpperCase();
+    if (normalized.startsWith(ADMIN_CODE_PREFIX)) {
+        return {
+            role: 'admin',
+            chatCode: normalized.slice(ADMIN_CODE_PREFIX.length)
+        };
     }
-}
-
-function cleanupAdminOnDisconnect() {
-    if (adminOnDisconnect) {
-        try {
-            adminOnDisconnect.cancel();
-        } catch (error) {
-            console.warn('Failed to cancel onDisconnect handler', error);
-        }
+    if (normalized.startsWith(AGENT_CODE_PREFIX)) {
+        return {
+            role: 'agent',
+            chatCode: normalized.slice(AGENT_CODE_PREFIX.length)
+        };
     }
-    adminOnDisconnect = null;
-}
-
-async function releaseAdminRoleIfOwned() {
-    if (currentRole !== 'admin' || !adminMetadataRef) return;
-    try {
-        await adminMetadataRef.transaction((currentValue) => currentValue === currentUserId ? null : currentValue);
-    } catch (error) {
-        console.warn('Unable to release admin role:', error);
-    }
-    cleanupAdminOnDisconnect();
-    adminMetadataRef = null;
+    return null;
 }
 
 function updateRoleUI() {
@@ -191,40 +165,64 @@ function generateChatCode() {
     return code;
 }
 
-// Show generated code
+// Show generated codes
 generateBtn.addEventListener('click', () => {
-    const code = generateChatCode();
-    codeValue.textContent = code;
-    chatCodeInput.value = code;
+    const baseCode = generateChatCode();
+    const { adminCode, agentCode } = buildAccessCodes(baseCode);
+    setGeneratedCodes(adminCode, agentCode);
+    chatCodeInput.value = adminCode;
     generatedCodeDiv.classList.remove('hidden');
 });
 
-// Copy code to clipboard
-copyBtn.addEventListener('click', async () => {
-    const code = codeValue.textContent;
-    try {
-        await navigator.clipboard.writeText(code);
-        copyBtn.textContent = '✓';
-        setTimeout(() => {
-            copyBtn.textContent = '📋';
-        }, 2000);
-    } catch (err) {
-        console.error('Failed to copy:', err);
+function setGeneratedCodes(adminCode, agentCode) {
+    if (adminCodeValue) {
+        adminCodeValue.textContent = adminCode;
     }
-});
+    if (agentCodeValue) {
+        agentCodeValue.textContent = agentCode;
+    }
+}
+
+function bindCopyButton(button, getValue) {
+    if (!button) return;
+    button.addEventListener('click', async () => {
+        const value = getValue();
+        if (!value) return;
+        try {
+            await navigator.clipboard.writeText(value);
+            const original = button.textContent;
+            button.textContent = '✓';
+            setTimeout(() => {
+                button.textContent = original || '📋';
+            }, 2000);
+        } catch (err) {
+            console.error('Failed to copy code:', err);
+        }
+    });
+}
+
+bindCopyButton(copyAdminBtn, () => adminCodeValue?.textContent);
+bindCopyButton(copyAgentBtn, () => agentCodeValue?.textContent);
 
 // Join chat room
-async function joinChat(code) {
-    if (!code || code.length < 4) {
-        alert('Please enter a valid chat code (at least 4 characters)');
+function joinChat(rawCode) {
+    const parsed = parseAccessCode(rawCode);
+    if (!parsed || !parsed.chatCode) {
+        alert('Enter a valid admin or agent code (e.g., ADM-ABC123).');
+        return;
+    }
+    
+    const normalizedChatCode = parsed.chatCode.replace(/[^A-Z0-9]/g, '');
+    if (normalizedChatCode.length < 4) {
+        alert('Chat code must contain at least 4 alphanumeric characters.');
         return;
     }
     
     teardownStatusTracking();
     
-    currentChatCode = code.toUpperCase();
+    currentChatCode = normalizedChatCode;
     activeCodeSpan.textContent = currentChatCode;
-    currentRole = await assignRoleForChat();
+    currentRole = parsed.role;
     updateRoleUI();
     resetTranscriptState();
     resetTypingSession(true);
@@ -246,10 +244,7 @@ async function joinChat(code) {
 
 function requestJoin() {
     const code = chatCodeInput.value.trim();
-    joinChat(code).catch((error) => {
-        console.error('Failed to join chat:', error);
-        alert('Unable to join the chat right now. Please try again.');
-    });
+    joinChat(code);
 }
 
 joinBtn.addEventListener('click', requestJoin);
@@ -261,13 +256,12 @@ chatCodeInput.addEventListener('keypress', (e) => {
 });
 
 // Leave chat
-async function leaveChat() {
+function leaveChat() {
     if (messagesRef) {
         messagesRef.off();
         messagesRef = null;
     }
     
-    await releaseAdminRoleIfOwned();
     teardownStatusTracking();
     currentRole = 'agent';
     updateRoleUI();
@@ -284,9 +278,11 @@ async function leaveChat() {
 }
 
 leaveBtn.addEventListener('click', () => {
-    leaveChat().catch((error) => {
+    try {
+        leaveChat();
+    } catch (error) {
         console.error('Error leaving chat:', error);
-    });
+    }
 });
 
 // Send message

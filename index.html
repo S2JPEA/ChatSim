@@ -17,7 +17,7 @@
                 <input 
                     type="text" 
                     id="chat-code-input" 
-                    placeholder="Enter chat code"
+                    placeholder="Enter admin or agent code"
                     maxlength="6"
                 >
                 <button id="join-btn" class="btn-primary">Join Chat</button>
@@ -30,12 +30,24 @@
             <button id="generate-btn" class="btn-secondary">Generate New Code</button>
             
             <div id="generated-code" class="generated-code hidden">
-                <p>Your chat code:</p>
-                <div class="code-display">
-                    <span id="code-value"></span>
-                    <button id="copy-btn" class="btn-copy" title="Copy code">📋</button>
+                <p>Share the correct code below to assign roles:</p>
+                <div class="code-pair">
+                    <div class="code-card">
+                        <p class="code-label">Admin Code</p>
+                        <div class="code-display">
+                            <span id="admin-code-value"></span>
+                            <button id="copy-admin-btn" class="btn-copy" title="Copy admin code">📋</button>
+                        </div>
+                    </div>
+                    <div class="code-card">
+                        <p class="code-label">Agent Code</p>
+                        <div class="code-display">
+                            <span id="agent-code-value"></span>
+                            <button id="copy-agent-btn" class="btn-copy" title="Copy agent code">📋</button>
+                        </div>
+                    </div>
                 </div>
-                <p class="code-info">Share this code with someone to start chatting</p>
+                <p class="code-info">Admins see transcripts & monitoring; agents see only their chat.</p>
             </div>
         </div>
     </div>
