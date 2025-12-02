@@ -79,7 +79,7 @@ body {
     border: 2px solid #e0e5ff;
     border-radius: 12px;
     font-size: 16px;
-    letter-spacing: 1px;
+    text-transform: uppercase;
     text-align: center;
     background: #f7f8ff;
     font-weight: 600;
