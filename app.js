@@ -47,7 +47,6 @@ const transcriptList = document.getElementById('transcript-list');
 const exportTranscriptBtn = document.getElementById('export-transcript-btn');
 const typingInsights = document.getElementById('typing-insights');
 
-const ADMIN_CODES_KEY = 'chat_admin_codes';
 const TYPING_IDLE_TIMEOUT = 2000;
 
 let currentRole = 'agent';
@@ -55,6 +54,8 @@ let transcriptEntries = [];
 let lastMessageTimestamp = null;
 let statusRef = null;
 let statusMonitorRef = null;
+let adminMetadataRef = null;
+let adminOnDisconnect = null;
 
 const typingSession = {
     startedAt: null,
@@ -96,35 +97,58 @@ if (exportTranscriptBtn) {
 }
 
 // Role helpers
-function getStoredAdminCodes() {
+async function assignRoleForChat() {
+    if (!database || !currentChatCode) return 'agent';
+    adminMetadataRef = database.ref(`chats/${currentChatCode}/metadata/adminId`);
     try {
-        const codes = localStorage.getItem(ADMIN_CODES_KEY);
-        return codes ? JSON.parse(codes) : [];
+        const result = await adminMetadataRef.transaction((currentValue) => currentValue || currentUserId);
+        const assignedAdminId = result.snapshot && result.snapshot.val();
+        if (assignedAdminId === currentUserId) {
+            setupAdminOnDisconnect();
+            return 'admin';
+        }
+        cleanupAdminOnDisconnect();
+        adminMetadataRef = null;
+        return 'agent';
     } catch (error) {
-        console.warn('Unable to parse stored admin codes', error);
-        return [];
+        console.error('Unable to assign admin role:', error);
+        adminMetadataRef = null;
+        cleanupAdminOnDisconnect();
+        return 'agent';
     }
 }
 
-function persistAdminCodes(codes) {
+function setupAdminOnDisconnect() {
+    cleanupAdminOnDisconnect();
+    if (!adminMetadataRef) return;
     try {
-        localStorage.setItem(ADMIN_CODES_KEY, JSON.stringify([...new Set(codes)]));
+        adminOnDisconnect = adminMetadataRef.onDisconnect();
+        adminOnDisconnect.remove();
     } catch (error) {
-        console.warn('Unable to persist admin codes', error);
+        console.warn('Failed to register admin onDisconnect handler', error);
     }
 }
 
-function rememberAdminCode(code) {
-    if (!code) return;
-    const codes = getStoredAdminCodes();
-    codes.push(code.toUpperCase());
-    persistAdminCodes(codes);
+function cleanupAdminOnDisconnect() {
+    if (adminOnDisconnect) {
+        try {
+            adminOnDisconnect.cancel();
+        } catch (error) {
+            console.warn('Failed to cancel onDisconnect handler', error);
+        }
+    }
+    adminOnDisconnect = null;
 }
 
-function determineRoleForCode(code) {
-    if (!code) return 'agent';
-    const codes = getStoredAdminCodes();
-    return codes.includes(code.toUpperCase()) ? 'admin' : 'agent';
+async function releaseAdminRoleIfOwned() {
+    if (currentRole !== 'admin' || !adminMetadataRef) return;
+    try {
+        await adminMetadataRef.transaction((currentValue) => currentValue === currentUserId ? null : currentValue);
+    } catch (error) {
+        console.warn('Unable to release admin role:', error);
+    }
+    cleanupAdminOnDisconnect();
+    adminMetadataRef = null;
 }
 
 function updateRoleUI() {
@@ -173,7 +197,6 @@ generateBtn.addEventListener('click', () => {
     codeValue.textContent = code;
     chatCodeInput.value = code;
     generatedCodeDiv.classList.remove('hidden');
-    rememberAdminCode(code);
 });
 
 // Copy code to clipboard
@@ -191,7 +214,7 @@ copyBtn.addEventListener('click', async () => {
 });
 
 // Join chat room
-function joinChat(code) {
+async function joinChat(code) {
     if (!code || code.length < 4) {
         alert('Please enter a valid chat code (at least 4 characters)');
         return;
@@ -201,7 +224,7 @@ function joinChat(code) {
     
     currentChatCode = code.toUpperCase();
     activeCodeSpan.textContent = currentChatCode;
-    currentRole = determineRoleForCode(currentChatCode);
+    currentRole = await assignRoleForChat();
     updateRoleUI();
     resetTranscriptState();
     resetTypingSession(true);
@@ -221,26 +244,33 @@ function joinChat(code) {
     messageInput.focus();
 }
 
-joinBtn.addEventListener('click', () => {
+function requestJoin() {
     const code = chatCodeInput.value.trim();
-    joinChat(code);
-});
+    joinChat(code).catch((error) => {
+        console.error('Failed to join chat:', error);
+        alert('Unable to join the chat right now. Please try again.');
+    });
+}
+
+joinBtn.addEventListener('click', requestJoin);
 
 chatCodeInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
-        const code = chatCodeInput.value.trim();
-        joinChat(code);
+        requestJoin();
     }
 });
 
 // Leave chat
-leaveBtn.addEventListener('click', () => {
+async function leaveChat() {
     if (messagesRef) {
         messagesRef.off();
         messagesRef = null;
     }
     
+    await releaseAdminRoleIfOwned();
     teardownStatusTracking();
+    currentRole = 'agent';
+    updateRoleUI();
     resetTranscriptState();
     resetTypingSession(true);
     
@@ -251,6 +281,12 @@ leaveBtn.addEventListener('click', () => {
     generatedCodeDiv.classList.add('hidden');
     messageInput.value = '';
     messagesContainer.innerHTML = '<div class="welcome-message"><p>🎉 Welcome to the chat!</p><p class="small">Share your code with someone to start chatting</p></div>';
+}
+
+leaveBtn.addEventListener('click', () => {
+    leaveChat().catch((error) => {
+        console.error('Error leaving chat:', error);
+    });
 });
 
 // Send message
