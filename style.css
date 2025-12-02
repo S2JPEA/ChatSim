@@ -175,6 +175,30 @@ body {
     margin-bottom: 10px;
 }
 
+.code-pair {
+    display: flex;
+    gap: 16px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+}
+
+.code-card {
+    flex: 1;
+    min-width: 200px;
+    background: white;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.15);
+}
+
+.code-label {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #4b5563;
+    margin-bottom: 10px;
+}
+
 .code-display {
     display: flex;
     align-items: center;
