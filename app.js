@@ -51,6 +51,7 @@ const typingInsights = document.getElementById('typing-insights');
 
 const ADMIN_CODE_PREFIX = 'ADM-';
 const AGENT_CODE_PREFIX = 'AGT-';
+const AU_DICTIONARY_URL = 'https://raw.githubusercontent.com/wooorm/dictionaries/main/dictionaries/en-au/index.dic';
 const TYPING_IDLE_TIMEOUT = 2000;
 
 let currentRole = 'agent';
@@ -87,6 +88,9 @@ const COMMON_WORDS = new Set([
 ]);
 
 const KNOWN_SUFFIXES = ['ing','ed','ly','tion','s','es','ment','ness','able','ible','ful','less','ers','er','ally','ous','ive','est'];
+const auDictionary = new Set();
+let dictionaryLoaded = false;
+let dictionaryLoading = false;
 
 if (exportTranscriptBtn) {
     exportTranscriptBtn.addEventListener('click', () => {
@@ -97,6 +101,8 @@ if (exportTranscriptBtn) {
         exportTranscript();
     });
 }
+
+loadAustralianDictionary();
 
 // Role helpers
 function buildAccessCodes(chatCode) {
@@ -123,6 +129,34 @@ function parseAccessCode(input) {
         };
     }
     return null;
+}
+
+async function loadAustralianDictionary() {
+    if (dictionaryLoaded || dictionaryLoading) return;
+    dictionaryLoading = true;
+    try {
+        const response = await fetch(AU_DICTIONARY_URL);
+        if (!response.ok) {
+            throw new Error(`Failed to download dictionary (${response.status})`);
+        }
+        const text = await response.text();
+        text.split(/\r?\n/).forEach((line) => {
+            if (!line || line.startsWith('#')) return;
+            const word = line.split('/')[0].trim().toLowerCase();
+            if (!word || /\d/.test(word)) return;
+            auDictionary.add(word);
+        });
+        dictionaryLoaded = true;
+        console.info(`Loaded ${auDictionary.size} Australian English entries.`);
+        if (currentRole === 'admin' && transcriptEntries.length) {
+            refreshTranscriptHighlights();
+        }
+    } catch (error) {
+        dictionaryLoaded = false;
+        console.warn('Australian dictionary unavailable; falling back to heuristics.', error);
+    } finally {
+        dictionaryLoading = false;
+    }
 }
 
 function updateRoleUI() {
@@ -583,15 +617,9 @@ function analyzeTextForIssues(text) {
     
     words.forEach((word) => {
         const stripped = word.replace(/'s$/, '');
-        if (stripped.length < 4) return;
-        if (COMMON_WORDS.has(stripped)) return;
-        if (COMMON_WORDS.has(stripped.replace(/(ing|ed|ly|tion|s|es)$/, ''))) return;
-        for (const suffix of KNOWN_SUFFIXES) {
-            if (stripped.endsWith(suffix) && COMMON_WORDS.has(stripped.slice(0, -suffix.length))) {
-                return;
-            }
+        if (isSpellingIssue(stripped)) {
+            spellingIssues.add(stripped);
         }
-        spellingIssues.add(stripped);
     });
     
     const grammarIssues = new Set();
@@ -616,6 +644,32 @@ function analyzeTextForIssues(text) {
         spelling: Array.from(spellingIssues),
         grammar: Array.from(grammarIssues)
     };
+}
+
+function isSpellingIssue(word) {
+    if (!word) return false;
+    const normalized = word.toLowerCase();
+    if (normalized.length < 4) return false;
+    
+    if (dictionaryLoaded && auDictionary.size) {
+        if (auDictionary.has(normalized)) return false;
+        for (const suffix of KNOWN_SUFFIXES) {
+            if (normalized.endsWith(suffix) && auDictionary.has(normalized.slice(0, -suffix.length))) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    if (COMMON_WORDS.has(normalized)) return false;
+    const stemmed = normalized.replace(/(ing|ed|ly|tion|s|es)$/, '');
+    if (stemmed.length >= 4 && COMMON_WORDS.has(stemmed)) return false;
+    for (const suffix of KNOWN_SUFFIXES) {
+        if (normalized.endsWith(suffix) && COMMON_WORDS.has(normalized.slice(0, -suffix.length))) {
+            return false;
+        }
+    }
+    return true;
 }
 
 function highlightTextWithIssues(text, issues) {
@@ -672,6 +726,19 @@ function renderIssueNotes(entry) {
     }
     if (!notes.length) return '';
     return `<div class="transcript-issues">${notes.join(' • ')}</div>`;
+}
+
+function refreshTranscriptHighlights() {
+    if (!transcriptList || !transcriptEntries.length) return;
+    transcriptList.innerHTML = '';
+    transcriptEntries = transcriptEntries.map((entry) => {
+        if (entry.role === 'AGENT') {
+            entry.issues = analyzeTextForIssues(entry.text);
+            entry.highlightedText = highlightTextWithIssues(entry.text, entry.issues);
+        }
+        return entry;
+    });
+    transcriptEntries.forEach((entry) => renderTranscriptEntry(entry));
 }
 
 function escapeRegExp(string) {
